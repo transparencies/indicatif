@@ -1,7 +1,6 @@
 use std::borrow::Cow;
-use std::cell::OnceCell;
 use std::io;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
@@ -110,6 +109,13 @@ impl BarState {
     pub(crate) fn inc_length(&mut self, now: Instant, delta: u64) {
         if let Some(len) = self.state.len {
             self.state.len = Some(len.saturating_add(delta));
+        }
+        self.update_estimate_and_draw(now);
+    }
+
+    pub(crate) fn dec_length(&mut self, now: Instant, delta: u64) {
+        if let Some(len) = self.state.len {
+            self.state.len = Some(len.saturating_sub(delta));
         }
         self.update_estimate_and_draw(now);
     }
@@ -348,7 +354,7 @@ pub(crate) enum TabExpandedString {
     NoTabs(Cow<'static, str>),
     WithTabs {
         original: Cow<'static, str>,
-        expanded: OnceCell<String>,
+        expanded: OnceLock<String>,
         tab_width: usize,
     },
 }
@@ -361,7 +367,7 @@ impl TabExpandedString {
             Self::WithTabs {
                 original: s,
                 tab_width,
-                expanded: OnceCell::new(),
+                expanded: OnceLock::new(),
             }
         }
     }
@@ -583,6 +589,10 @@ impl AtomicPosition {
 
     pub(crate) fn inc(&self, delta: u64) {
         self.pos.fetch_add(delta, Ordering::SeqCst);
+    }
+
+    pub(crate) fn dec(&self, delta: u64) {
+        self.pos.fetch_sub(delta, Ordering::SeqCst);
     }
 
     pub(crate) fn set(&self, pos: u64) {
